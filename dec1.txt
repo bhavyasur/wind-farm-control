@@ -1,0 +1,23 @@
+Generating data for varying scenarios
+
+SETUP:
+run files to generate 1000 sets of data, sweeping through values or just using a single value? and maybe 5 trials of each value
+
+MODELS:
+- Jensen
+- Multi-zone wake
+- Gaussian wake
+- Curl model
+
+Analysis of ease of data generation
+
+Test FLORIS default controllers
+
+Read some papers to compare to experience
+- floris paper on zotero
+
+NEXT STEP: read model-free RL paper and code up somethign for that
+
+is the goal to get data that is optimized or data that we will then try to find an optimal thing from while learning controls? how many realistic scenarios do we need for this?
+
+# save data to /Users/bhavyasurapaneni/GitHub/wind-farm-control/prelim_data
