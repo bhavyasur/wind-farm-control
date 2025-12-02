@@ -1,0 +1,56 @@
+name: "simple_farm"
+description: "FLORIS config for data generation"
+floris_version: "4.5"
+
+logging:
+  console:
+    enable: false
+    level: "WARNING" # since we are doing data generation
+
+  file:
+    enable: false
+    level: "WARNING"
+    filename: "floris.log"
+
+solver:
+  type: turbine_grid
+  turbine_grid_points: 3
+  turbine_grid_subset: "full"
+
+wake:
+  model_strings:
+    velocity_model: "gauss"          # overridden in model files
+    deflection_model: "gauss"        # overridden in model files
+    turbulence_model: "crespo_hernandez" # can change
+    combination_model: "sosfs"
+  enable_secondary_steering: false
+  enable_yaw_added_recovery: false
+  enable_transverse_velocities: false
+  enable_active_wake_mixing: false
+  wake_velocity_parameters:
+    jensen: {}
+    gauss: {}
+    cc: {}
+    turboparkgauss: {}
+  wake_deflection_parameters:
+    gauss: {}
+    jimenez: {}
+    none: {}
+  wake_turbulence_parameters:
+    crespo_hernandez: {}
+    none: {}
+
+flow_field:
+  air_density: 1.225
+  wind_speeds: [8.0]
+  wind_directions: [270.0]
+  turbulence_intensities: [0.06]
+  reference_wind_height: -1
+  wind_shear: 0.12
+  wind_veer: 0.0
+
+farm:
+  layout_x: [0.0]                    # will be overwritten dynamically
+  layout_y: [0.0]
+  turbine_type: ["nrel_5MW"]
+

@@ -1,13 +1,11 @@
 from floris import FlorisModel
 import numpy as np
 
-class GCHWakeModel:
+class TurboParkGaussWakeModel:
     def __init__(self):
-        self.fm = FlorisModel("configs/farm_setup.yml")
-        self.fm.set_wake_model(
-            velocity_model="gauss",
-            deflection_model="gauss"
-        )
+        self.fm = FlorisModel("configs/farm_setup.yaml")
+        self.fm.core.wake.model_strings["velocity_model"] = "turboparkgauss"
+        self.fm.core.wake.model_strings["deflection_model"] = "gauss"
 
     @property
     def param_ranges(self):
@@ -22,8 +20,8 @@ class GCHWakeModel:
         return {k: np.random.uniform(*v) for k, v in self.param_ranges.items()}
 
     def apply_params(self, params):
-        vmod = self.fm.wake.velocity_model
-        dmod = self.fm.wake.deflection_model
+        vmod = self.fm.core.wake.velocity_model
+        dmod = self.fm.core.wake.deflection_model
         for k, v in params.items():
             if hasattr(vmod, k):
                 setattr(vmod, k, v)

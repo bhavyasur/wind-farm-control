@@ -5,19 +5,19 @@ import pandas as pd
 from models.jensen import JensenWakeModel
 from models.gauss import GaussWakeModel
 from models.curl import CurlWakeModel
-from models.gch import GCHWakeModel
+from models.turbopark import TurboParkGaussWakeModel
 
 # --- CONFIG SELECTION ---
 
-MODEL_NAME   = "gch"              # "jensen", "gauss", "curl", or "gch"
+MODEL_NAME   = "turboparkgauss"              # "jensen", "gauss", "curl", or "turboparkgauss"
 N_SAMPLES    = 1000               # number of datapoints to generate
-ENV_FILE     = "configs/farm_1.yml" # path to your YAML
+ENV_FILE     = "configs/env.yaml" # path to your YAML
 
 model_map = {
     "jensen": JensenWakeModel,
     "gauss":  GaussWakeModel,
     "curl":   CurlWakeModel,
-    "gch":    GCHWakeModel,   # Gauss–Curl Hybrid
+    "turboparkgauss":   TurboParkGaussWakeModel   
 }
 
 # --- YAML & layout helpers ---
@@ -53,12 +53,7 @@ def run_sweep(model_name: str, N: int, env: dict):
     fm = model.fm
 
     # --------- Number of turbines & layout ----------
-    if "num_turbines" in env:
-        num_t = int(sample_env_value(env["num_turbines"]))
-    else:
-        # fallback: current layout length
-        num_t = len(fm.layout_x)
-
+    num_t = int(sample_env_value(env["num_turbines"]))
     layout_x, layout_y = generate_layout(num_t)
     fm.set(layout_x=layout_x, layout_y=layout_y)
 
@@ -70,23 +65,22 @@ def run_sweep(model_name: str, N: int, env: dict):
         model.apply_params(params)
 
         # 2) Sample environment variables from YAML
+        # 3) Apply environmental conditions
         ws = sample_env_value(env["wind_speed"])
         wd = sample_env_value(env["wind_direction"])
         yaw = sample_env_value(env["yaw"])
 
-        if "turbulence_intensities" in env:
-            ti = sample_env_value(env["turbulence_intensities"])
-            fm.set(turbulence_intensities=ti)
+        if "turbulence_intensity" in env:
+            ti = sample_env_value(env["turbulence_intensity"])
+            fm.set(turbulence_intensities=[ti])   # must be a list
         else:
             ti = None
 
         # 3) Apply conditions to FlorisModel
         fm.set(
-            wind_speeds=ws,
-            wind_directions=wd,
-            # same yaw for all turbines; change to list of different yaw
-            # values if you want per-turbine actions later
-            yaw_angles=[yaw] * num_t
+            wind_speeds=[ws],             # list of floats
+            wind_directions=[wd],         # list of floats
+            yaw_angles=[[yaw] * num_t]    # 2D array required
         )
 
         # 4) Run FLORIS
