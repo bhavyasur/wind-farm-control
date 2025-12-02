@@ -3,7 +3,7 @@ import numpy as np
 
 class CurlWakeModel:
     def __init__(self):
-        self.fm = FlorisModel("farm_setup.yaml")
+        self.fm = FlorisModel("configs/farm_setup.yml")
         self.fm.set_wake_model(
             velocity_model="curl",
             deflection_model="curl"

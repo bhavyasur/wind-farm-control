@@ -74,8 +74,8 @@ def run_sweep(model_name: str, N: int, env: dict):
         wd = sample_env_value(env["wind_direction"])
         yaw = sample_env_value(env["yaw"])
 
-        if "turbulence_intensity" in env:
-            ti = sample_env_value(env["turbulence_intensity"])
+        if "turbulence_intensities" in env:
+            ti = sample_env_value(env["turbulence_intensities"])
             fm.set(turbulence_intensities=ti)
         else:
             ti = None

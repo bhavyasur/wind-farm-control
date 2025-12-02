@@ -3,7 +3,7 @@ import numpy as np
 
 class GaussWakeModel:
     def __init__(self):
-        self.fm = FlorisModel("farm_setup.yml")
+        self.fm = FlorisModel("configs/farm_setup.yml")
         self.fm.set_wake_model(
             velocity_model="gauss",
             deflection_model="gauss"

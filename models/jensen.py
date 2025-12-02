@@ -3,7 +3,7 @@ import numpy as np
 
 class JensenWakeModel:
     def __init__(self):
-        self.fm = FlorisModel("farm_setup.yaml")
+        self.fm = FlorisModel("configs/farm_setup.yaml")
         self.fm.set_wake_model(
             velocity_model="jensen",
             deflection_model="jensen"
