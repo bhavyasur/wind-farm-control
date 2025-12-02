@@ -5,7 +5,7 @@ import pandas as pd
 from models.jensen import JensenWakeModel
 from models.gauss import GaussWakeModel
 from models.curl import CurlWakeModel
-from models.turbopark import TurboParkGaussWakeModel
+from models.turboparkgauss import TurboParkGaussWakeModel
 
 # --- CONFIG SELECTION ---
 
@@ -102,7 +102,7 @@ def run_sweep(model_name: str, N: int, env: dict):
 
     # 6) Save to CSV
     df = pd.DataFrame(rows)
-    out_path = f"generated_data/{model_name}_data.csv"
+    out_path = f"generated_data/{model_name}_{num_t}turbines_data.csv"
     df.to_csv(out_path, index=False)
     print(f"Saved dataset to: {out_path}")
 
