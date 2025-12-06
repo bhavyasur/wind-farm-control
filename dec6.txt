@@ -1,0 +1,5 @@
+reading thru introconcepts.ipynb on floris repository.
+
+1. Load inputs and preprocess data
+2. Run the wind farm wake calculation
+3. Extract data and postprocess results
