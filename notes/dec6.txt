@@ -1,0 +1,13 @@
+reading thru introconcepts.ipynb on floris repository.
+
+1. Load inputs and preprocess data
+2. Run the wind farm wake calculation
+3. Extract data and postprocess results
+
+main things to change in data:
+yaw angle
+typical wind conditions 
+
+wake profile = velocity deficit profile behind wind turbine + potential additioanl model for effect of yaw misalignment
+
+need to look into whether the uncertain floris model is worth using - keeps wind direction and speed consistent, simply adds uncertainty into direction at steady state
