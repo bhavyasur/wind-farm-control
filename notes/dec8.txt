@@ -1,0 +1,25 @@
+mappo wind farm - reinforcement learning multiobjective control fo grid connected wind farms
+-> using standard reinforcement learning for control of wind farms, we can do a little better
+-> couple options
+-> scholar labs will let you do natural language search
+- reinforcement algos to apply to system that haven't been done yet
+- multiagent wind farm control has been done but it's very specific
+- line of research of RL for wind farms is same kind of basic thesis that we don't necessarily know what the model is for this wind-farm, but we have a simulator, so in a mostly model-free way can we figure this out
+- thing we want to add is that we don't know the whole model, do understnad basic things, can i use these basic things to do even better than before
+- reduce sampling complexity -> get an algo that works in this kind of environment faster?
+- idea is that you don't need too many simulations to learn this thing. high-fidelity - only need a little bit more data for a more complex system.
+- physics-informed RL
+-> integrate some type of physical intuition into the system
+    -> take something that exists already and apply it to this domain & show that there's some kind of benefit for doing this
+    -> world modeling
+    worldmodels.github.io
+    -> novelty in implementation of a system to this system
+
+- spend a decent amount of time with RL basics
+- simulation and some scenarios, let the agent do stuff in an environment and collect a reward signal, then use that signal to figure out what to do NEXT
+- let the agent play
+- for you to collect a dataset that is comprehensive, that would be nearly impossible
+- important for simulator to run quickly
+
+REVIEW FOR RL:
+- run examples when it comes to books
