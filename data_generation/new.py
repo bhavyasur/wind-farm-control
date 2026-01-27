@@ -71,7 +71,8 @@ print("-" * 10)
 # --- 4: RUN FLORIS ON DIFF CONDITIONS (LOOP) ---
 for yaw_index, single_yaw in enumerate(yaw_sets):
     # a) Broadcast the 1D yaw set to a (N_findex, N_turbines) array
-    yaw_angles_array = np.tile(single_yaw, (N_findex, 1))
+    yaw_angles_array = np.
+    tile(single_yaw, (N_findex, 1))
 
     # b) Run the simulation
     fmodel.set(yaw_angles=yaw_angles_array)
@@ -101,7 +102,7 @@ for yaw_index, single_yaw in enumerate(yaw_sets):
 df_data = pd.DataFrame(data_rows)
 print("Data generation complete.")
 print(f"Final DataFrame Shape: {df_data.shape}")
-df_data.to_csv(f"output/data/{selected_wake_model}_{N_TURBINES}turbines.csv", index=False)
+df_data.to_csv(f"data_generation/output/data/{selected_wake_model}_{N_TURBINES}turbines.csv", index=False)
 print("Saved dataset to data folder.")
 print("-" * 10)
 
@@ -158,7 +159,7 @@ for plot_num, df_index in enumerate(plot_indices):
     )
     
     # Save the figure
-    plt.savefig(f"output/visualizations/wake_index_{df_index}.png", bbox_inches='tight')
+    plt.savefig(f"data_generation/output/visualizations/wake_index_{df_index}.png", bbox_inches='tight')
     plt.close(fig)
     print(f"  Saved wake plot {plot_num+1}/10.")
 
@@ -196,7 +197,7 @@ ax.set_ylabel('Farm Power (kW)')
 ax.legend()
 ax.grid(True, linestyle='--')
 
-plt.savefig(os.path.join("output/plots", "diag_power_vs_wd_sweep.png"), bbox_inches='tight')
+plt.savefig(os.path.join("data_generation/output/plots", "diag_power_vs_wd_sweep.png"), bbox_inches='tight')
 plt.close(fig)
 print("  Saved Diagnostic Plot 1/3 (Power vs WD).")
 
@@ -219,7 +220,7 @@ ax.set_xlabel('Turbulence Intensity (TI)')
 ax.set_ylabel('Power Gain (%)')
 ax.grid(True, linestyle='--')
 
-plt.savefig(os.path.join("output/plots", "diag_gain_vs_ti.png"), bbox_inches='tight')
+plt.savefig(os.path.join("data_generation/output/plots", "diag_gain_vs_ti.png"), bbox_inches='tight')
 plt.close(fig)
 print("  Saved Diagnostic Plot 2/3 (Gain vs TI).")
 
@@ -233,7 +234,7 @@ ax.set_xlabel('Yaw Angle Set ID')
 ax.set_ylabel('Farm Power (kW)')
 fig.suptitle('') # Suppress auto suptitle
 
-plt.savefig(os.path.join("output/plots", "diag_boxplot_power_by_yaw_set.png"), bbox_inches='tight')
+plt.savefig(os.path.join("data_generation/output/plots", "diag_boxplot_power_by_yaw_set.png"), bbox_inches='tight')
 plt.close(fig)
 print("  Saved Diagnostic Plot 3/3 (Box Plot).")
 print("-" * 30)
