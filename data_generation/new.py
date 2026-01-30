@@ -71,8 +71,7 @@ print("-" * 10)
 # --- 4: RUN FLORIS ON DIFF CONDITIONS (LOOP) ---
 for yaw_index, single_yaw in enumerate(yaw_sets):
     # a) Broadcast the 1D yaw set to a (N_findex, N_turbines) array
-    yaw_angles_array = np.
-    tile(single_yaw, (N_findex, 1))
+    yaw_angles_array = np.tile(single_yaw, (N_findex, 1))
 
     # b) Run the simulation
     fmodel.set(yaw_angles=yaw_angles_array)
