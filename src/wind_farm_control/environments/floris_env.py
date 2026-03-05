@@ -14,7 +14,13 @@ class FlorisMultiAgentEnv(ParallelEnv):
     its yaw angle to optimize the total farm power output.
     """
 
-    def __init__(self, config_path):
+    metadata = {
+        "name": "FlorisMultiAgentEnv",
+        "render_modes": ["human"],
+        "is_parallelizable": True,
+    }
+
+    def __init__(self, config_path, render_mode=None):
         """
         Initialize the FLORIS multi-agent environment.
 
@@ -22,6 +28,7 @@ class FlorisMultiAgentEnv(ParallelEnv):
             config_path: Path to FLORIS configuration YAML file
         """
         super().__init__()
+        self.render_mode = render_mode
 
         # 1. Initialize the physics model
         self.fmodel = FlorisModel(config_path)

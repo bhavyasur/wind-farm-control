@@ -2451,6 +2451,20 @@ wheels = [
 ]
 
 [[package]]
+name = "supersuit"
+version = "3.10.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "gymnasium" },
+    { name = "numpy" },
+    { name = "tinyscaler" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7c/68/16b774842f9be011d2accc6ab86bc3808854a36ce5456e4e19b9ad7c484b/supersuit-3.10.0.tar.gz", hash = "sha256:85cc4723e2ee4fc7284e0e5586d9e20360ee073bc0d8b997fe48686c83cd348a", size = 34350 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b5/6e/fce0b8179ba9e99c40cd3fb013657110e4d5ca894de3f9aa4962b6a9d86c/supersuit-3.10.0-py3-none-any.whl", hash = "sha256:fd0b9e351808d3efaedafcbe48a6beb1f6a87828ccfeaf410af4b87e32882a7f", size = 50180 },
+]
+
+[[package]]
 name = "sympy"
 version = "1.14.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2517,6 +2531,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/7a/fd/7a5ee21fd08ff70d3
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e6/34/ebdc18bae6aa14fbee1a08b63c015c72b64868ff7dae68808ab500c492e2/tinycss2-1.4.0-py3-none-any.whl", hash = "sha256:3a49cf47b7675da0b15d0c6e1df8df4ebd96e9394bb905a5775adb0d884c5289", size = 26610 },
 ]
+
+[[package]]
+name = "tinyscaler"
+version = "1.2.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0d/59/6b6495fe9bb3153306a4bd6dd24c78ff74eaf64f90fc6e545ede0574cfbe/tinyscaler-1.2.8.tar.gz", hash = "sha256:0ce3b77562f1db74b2035ccaf62807af043333ce655e71effd6ec85fbf8ded06", size = 156935 }
 
 [[package]]
 name = "torch"
@@ -2715,6 +2738,7 @@ dependencies = [
     { name = "pettingzoo" },
     { name = "seaborn" },
     { name = "skrl" },
+    { name = "supersuit" },
     { name = "tensorboard" },
     { name = "torch" },
 ]
@@ -2750,6 +2774,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "skrl", specifier = ">=1.4.3" },
+    { name = "supersuit", specifier = ">=3.10.0" },
     { name = "tensorboard", specifier = ">=2.20.0" },
     { name = "torch", specifier = ">=2.10.0" },
 ]

@@ -25,6 +25,7 @@ dependencies = [
     "pettingzoo>=1.25.0",
     "seaborn>=0.13.2",
     "skrl>=1.4.3",
+    "supersuit>=3.10.0",
     "tensorboard>=2.20.0",
     "torch>=2.10.0",
 ]
