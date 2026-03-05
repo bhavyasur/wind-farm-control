@@ -80,7 +80,8 @@ def test_step_updates_observation_and_reward(torchrl_env):
     assert actions.shape == (base_env.n_agents, 1)
 
     td.set(("agents", "action"), actions)
-    td_next = torchrl_env.step(td)
+    step_result = torchrl_env.step(td)
+    td_next = step_result.get("next")
 
     next_obs = td_next["agents", "observation"]
     reward = td_next["agents", "reward"]
@@ -103,7 +104,7 @@ def test_episode_terminates_after_max_steps(torchrl_env):
     for _ in range(base_env.max_steps):
         actions = base_env.action_spec["agents", "action"].sample()
         td.set(("agents", "action"), actions)
-        td = torchrl_env.step(td)
+        td = torchrl_env.step(td).get("next")
 
     assert bool(td["done"].item())
 

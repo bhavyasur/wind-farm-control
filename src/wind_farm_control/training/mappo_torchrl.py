@@ -9,31 +9,32 @@ multi-agent PPO tutorial:
 Key design choices:
 - Each wind turbine is treated as an agent.
 - A centralised critic (MAPPO) is used.
-- Multiple independent environments are run in parallel in Python
-  (default: 8) to stabilise training.
-
-The environment itself is *not* vectorised via TorchRL's `ParallelEnv`:
-we instead run several single-env instances side-by-side and assemble
-their data into a `TensorDict` batch, which is sufficient for TorchRL's
-loss and value-estimation utilities.
+- Multiple environments run in parallel via TorchRL's ``ParallelEnv``
+  (one process per env), so the OS can schedule each env on a different
+  CPU core.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, cast
 
 import torch
+from torchrl.data import Composite
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule, set_composite_lp_aggregate
 from tensordict.nn.distributions import NormalParamExtractor
 from torchrl.data.replay_buffers import ReplayBuffer
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 from torchrl.data.replay_buffers.storages import LazyTensorStorage
+from torchrl.envs import ParallelEnv
 from torchrl.modules import MultiAgentMLP, ProbabilisticActor, TanhNormal
 from torchrl.objectives import ClipPPOLoss, ValueEstimators
 
-from wind_farm_control.environments import make_floris_torchrl_env
+from wind_farm_control.environments import (
+    FlorisMultiAgentTorchRLEnv,
+    make_floris_torchrl_env,
+)
 
 
 @dataclass
@@ -134,12 +135,12 @@ def _build_policy_and_critic(
 
 
 def _collect_rollout(
-    envs,
+    env: ParallelEnv,
     policy: ProbabilisticActor,
     max_steps: int,
     device: torch.device,
 ) -> TensorDict:
-    """Collect one rollout from each environment and assemble into a TensorDict.
+    """Collect one batched rollout from a ParallelEnv and assemble into a TensorDict.
 
     The resulting TensorDict has batch size (num_envs, max_steps) and contains:
     - ("agents", "observation")
@@ -150,13 +151,12 @@ def _collect_rollout(
     - ("next", "done")
     - ("next", "terminated")
     """
-    num_envs = len(envs)
-
-    # Assume all envs share the same specs
-    base_env = envs[0]
-    n_agents = base_env.n_agents
-    obs_dim = base_env.observation_spec["agents", "observation"].shape[-1]
-    action_dim = base_env.action_spec["agents", "action"].shape[-1]
+    num_envs = env.batch_size[0]
+    obs_spec = cast(Composite, env.observation_spec)["agents", "observation"]
+    action_spec = cast(Composite, env.action_spec)["agents", "action"]
+    n_agents = obs_spec.shape[-2]
+    obs_dim = obs_spec.shape[-1]
+    action_dim = action_spec.shape[-1]
 
     # Preallocate rollout tensors
     obs = torch.empty(
@@ -181,38 +181,32 @@ def _collect_rollout(
         num_envs, max_steps, n_agents, obs_dim, dtype=torch.float32, device=device
     )
 
-    # Reset all envs
-    current_tds = [env.reset().to(device) for env in envs]
+    td = env.reset().to(device)
 
     for t in range(max_steps):
-        for env_idx, env in enumerate(envs):
-            td = current_tds[env_idx]
+        obs[:, t] = td["agents", "observation"]
 
-            # Store current observation
-            obs[env_idx, t] = td["agents", "observation"]
+        # Sample action from policy without tracking gradients.
+        # PPO will re-run the policy during optimisation; the stored
+        # log-probs must be treated as fixed baselines.
+        with torch.no_grad():
+            td_policy = policy(td.clone())
+            # Workers run on CPU; pass CPU tensordict for step, then move result back.
+            # ParallelEnv expects step() to return a td with "next"; unpack it.
+            step_result = env.step(td_policy.cpu()).to(device)
+            td_next = step_result.get("next")
 
-            # Sample action from policy without tracking gradients.
-            # PPO will re-run the policy during optimisation; the stored
-            # log-probs must be treated as fixed baselines.
-            with torch.no_grad():
-                td_policy = policy(td.clone())
+        act = td_policy["agents", "action"]
+        logp = td_policy["agents", "action_log_prob"]
 
-            act = td_policy["agents", "action"]
-            logp = td_policy["agents", "action_log_prob"]
+        actions[:, t] = act
+        action_log_prob[:, t] = logp
+        next_obs[:, t] = td_next["agents", "observation"]
+        rewards[:, t] = td_next["agents", "reward"]
+        done[:, t] = td_next["done"]
+        terminated[:, t] = td_next["terminated"]
 
-            actions[env_idx, t] = act
-            action_log_prob[env_idx, t] = logp
-
-            # Step environment (no gradients needed through dynamics)
-            with torch.no_grad():
-                td_next = env.step(td_policy).to(device)
-
-            next_obs[env_idx, t] = td_next["agents", "observation"]
-            rewards[env_idx, t] = td_next["agents", "reward"]
-            done[env_idx, t] = td_next["done"]
-            terminated[env_idx, t] = td_next["terminated"]
-
-            current_tds[env_idx] = td_next
+        td = td_next
 
     rollout_td = TensorDict(
         {
@@ -248,121 +242,125 @@ def train_mappo_floris_multi_env(
 
     device = cfg.device
 
-    # Build multiple independent env instances (each with all turbines as agents)
-    envs = [
-        make_floris_torchrl_env(
+    # One process per env so the OS can schedule each on a different CPU core.
+    def _make_single_env() -> FlorisMultiAgentTorchRLEnv:
+        return make_floris_torchrl_env(
             config_path=config_path,
             max_steps=cfg.max_steps_per_episode,
-            device=device,
+            device="cpu",
         )
-        for _ in range(cfg.num_envs)
-    ]
 
-    base_env = envs[0]
-    n_agents = base_env.n_agents
-    obs_dim = base_env.observation_spec["agents", "observation"].shape[-1]
-    action_dim = base_env.action_spec["agents", "action"].shape[-1]
+    env = ParallelEnv(cfg.num_envs, _make_single_env)
+    try:
+        # Specs are batched: (num_envs, n_agents, ...)
+        obs_spec = cast(Composite, env.observation_spec)["agents", "observation"]
+        action_spec = cast(Composite, env.action_spec)["agents", "action"]
+        n_agents = obs_spec.shape[-2]
+        obs_dim = obs_spec.shape[-1]
+        action_dim = action_spec.shape[-1]
 
-    policy, critic = _build_policy_and_critic(
-        obs_dim=obs_dim,
-        action_dim=action_dim,
-        n_agents=n_agents,
-        device=device,
-    )
-
-    # PPO loss and value estimator (GAE)
-    loss_module = ClipPPOLoss(
-        actor_network=policy,
-        critic_network=critic,
-        clip_epsilon=cfg.clip_epsilon,
-        entropy_coeff=cfg.entropy_eps,
-        normalize_advantage=False,
-    )
-    loss_module.set_keys(
-        reward=("agents", "reward"),
-        action=("agents", "action"),
-        value=("agents", "state_value"),
-        done=("agents", "done"),
-        terminated=("agents", "terminated"),
-    )
-
-    loss_module.make_value_estimator(
-        ValueEstimators.GAE, gamma=cfg.gamma, lmbda=cfg.lmbda
-    )
-    gae = loss_module.value_estimator
-
-    frames_per_batch = cfg.num_envs * cfg.max_steps_per_episode
-
-    replay_buffer = ReplayBuffer(
-        storage=LazyTensorStorage(frames_per_batch, device=device),
-        sampler=SamplerWithoutReplacement(),
-        batch_size=cfg.minibatch_size,
-    )
-
-    optim = torch.optim.Adam(loss_module.parameters(), lr=cfg.lr)
-
-    for iter_idx in range(cfg.n_iters):
-        # Data collection
-        tensordict_data = _collect_rollout(
-            envs=envs,
-            policy=policy,
-            max_steps=cfg.max_steps_per_episode,
+        policy, critic = _build_policy_and_critic(
+            obs_dim=obs_dim,
+            action_dim=action_dim,
+            n_agents=n_agents,
             device=device,
         )
 
-        # Expand done / terminated across the agent dimension, following the tutorial
-        reward_shape = tensordict_data.get(("next", "agents", "reward")).shape
-        done_expanded = (
-            tensordict_data.get(("next", "done"))
-            .unsqueeze(-1)
-            .expand(reward_shape)
+        # PPO loss and value estimator (GAE)
+        loss_module = ClipPPOLoss(
+            actor_network=policy,
+            critic_network=critic,
+            clip_epsilon=cfg.clip_epsilon,
+            entropy_coeff=cfg.entropy_eps,
+            normalize_advantage=False,
         )
-        terminated_expanded = (
-            tensordict_data.get(("next", "terminated"))
-            .unsqueeze(-1)
-            .expand(reward_shape)
+        loss_module.set_keys(
+            reward=("agents", "reward"),
+            action=("agents", "action"),
+            value=("agents", "state_value"),
+            done=("agents", "done"),
+            terminated=("agents", "terminated"),
         )
 
-        tensordict_data.set(("next", "agents", "done"), done_expanded)
-        tensordict_data.set(("next", "agents", "terminated"), terminated_expanded)
+        loss_module.make_value_estimator(
+            ValueEstimators.GAE, gamma=cfg.gamma, lmbda=cfg.lmbda
+        )
+        gae = loss_module.value_estimator
 
-        # Compute advantages and value targets with GAE
-        with torch.no_grad():
-            gae(
-                tensordict_data,
-                params=loss_module.critic_network_params,
-                target_params=loss_module.target_critic_network_params,
+        frames_per_batch = cfg.num_envs * cfg.max_steps_per_episode
+
+        replay_buffer = ReplayBuffer(
+            storage=LazyTensorStorage(frames_per_batch, device=device),
+            sampler=SamplerWithoutReplacement(),
+            batch_size=cfg.minibatch_size,
+        )
+
+        optim = torch.optim.Adam(loss_module.parameters(), lr=cfg.lr)
+
+        for iter_idx in range(cfg.n_iters):
+            # Data collection
+            tensordict_data = _collect_rollout(
+                env=env,
+                policy=policy,
+                max_steps=cfg.max_steps_per_episode,
+                device=device,
             )
 
-        # Flatten env/time dims for replay buffer
-        data_view = tensordict_data.reshape(-1)
-        replay_buffer.extend(data_view)
+            # Expand done / terminated across the agent dimension, following the tutorial
+            reward_shape = tensordict_data.get(("next", "agents", "reward")).shape
+            done_expanded = (
+                tensordict_data.get(("next", "done"))
+                .unsqueeze(-1)
+                .expand(reward_shape)
+            )
+            terminated_expanded = (
+                tensordict_data.get(("next", "terminated"))
+                .unsqueeze(-1)
+                .expand(reward_shape)
+            )
 
-        # Optimisation epochs
-        for _ in range(cfg.num_epochs):
-            num_minibatches = frames_per_batch // cfg.minibatch_size
-            for _ in range(num_minibatches):
-                subdata = replay_buffer.sample()
-                loss_vals = loss_module(subdata)
+            tensordict_data.set(("next", "agents", "done"), done_expanded)
+            tensordict_data.set(("next", "agents", "terminated"), terminated_expanded)
 
-                loss_value = (
-                    loss_vals["loss_objective"]
-                    + loss_vals["loss_critic"]
-                    + loss_vals["loss_entropy"]
+            # Compute advantages and value targets with GAE
+            with torch.no_grad():
+                gae(
+                    tensordict_data,
+                    params=loss_module.critic_network_params,
+                    target_params=loss_module.target_critic_network_params,
                 )
 
-                loss_value.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    loss_module.parameters(), max_norm=cfg.max_grad_norm
-                )
-                optim.step()
-                optim.zero_grad()
+            # Flatten env/time dims for replay buffer
+            data_view = tensordict_data.reshape(-1)
+            replay_buffer.extend(data_view)
 
-        # Simple logging: mean reward over all envs / steps / agents
-        rewards = tensordict_data.get(("next", "agents", "reward"))
-        mean_reward = rewards.mean().item()
-        print(
-            f"[MAPPO] Iteration {iter_idx + 1}/{cfg.n_iters} "
-            f"- mean reward per step per agent: {mean_reward:.4f}"
-        )
+            # Optimisation epochs
+            for _ in range(cfg.num_epochs):
+                num_minibatches = frames_per_batch // cfg.minibatch_size
+                for _ in range(num_minibatches):
+                    subdata = replay_buffer.sample()
+                    loss_vals = loss_module(subdata)
+
+                    loss_value = (
+                        loss_vals["loss_objective"]
+                        + loss_vals["loss_critic"]
+                        + loss_vals["loss_entropy"]
+                    )
+
+                    loss_value.backward()
+                    torch.nn.utils.clip_grad_norm_(
+                        loss_module.parameters(), max_norm=cfg.max_grad_norm
+                    )
+                    optim.step()
+                    optim.zero_grad()
+
+            # Simple logging: mean reward over all envs / steps / agents
+            rewards = tensordict_data.get(("next", "agents", "reward"))
+            mean_reward = rewards.mean().item()
+            print(
+                f"[MAPPO] Iteration {iter_idx + 1}/{cfg.n_iters} "
+                f"- mean reward per step per agent: {mean_reward:.4f}"
+            )
+    finally:
+        env.close()
 

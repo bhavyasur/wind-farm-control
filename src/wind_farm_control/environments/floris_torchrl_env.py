@@ -260,17 +260,21 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
         return out
 
     # ------------------------------------------------------------------ #
-    # Simple step wrapper
+    # Step wrapper (TorchRL "next" convention for ParallelEnv)
     # ------------------------------------------------------------------ #
 
     def step(self, tensordict: TensorDictBase) -> TensorDict:
-        """Override EnvBase.step with a minimal implementation.
+        """Step the environment and return a tensordict with a \"next\" entry.
 
-        This bypasses EnvBase's \"next\"-key convention and returns the
-        environment outputs directly, which is sufficient for the current
-        barebones use case and tests.
+        ParallelEnv (and other TorchRL utilities) expect step() to return a
+        tensordict that has a \"next\" key containing the next observation,
+        reward, done, and terminated. This method returns the input with
+        \"next\" set to the output of _step().
         """
-        return self._step(tensordict)
+        next_td = self._step(tensordict)
+        out = tensordict.clone(recurse=False)
+        out.set("next", next_td)
+        return out
 
     # ------------------------------------------------------------------ #
     # Internal helpers
