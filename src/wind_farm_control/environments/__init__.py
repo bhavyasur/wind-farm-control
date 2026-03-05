@@ -1,5 +1,8 @@
-"""Environment modules for wind farm control"""
+"""Environment modules for wind farm control."""
 
-from .floris_env import FlorisMultiAgentEnv
+from .floris_torchrl_env import FlorisMultiAgentTorchRLEnv, make_floris_torchrl_env
 
-__all__ = ["FlorisMultiAgentEnv"]
+__all__ = [
+    "FlorisMultiAgentTorchRLEnv",
+    "make_floris_torchrl_env",
+]
