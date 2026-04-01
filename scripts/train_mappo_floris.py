@@ -13,11 +13,10 @@ import argparse
 
 import torch
 
-from wind_farm_control.training.mappo_torchrl import (
+from mappo_torchrl import (
     MAPPOTorchRLConfig,
     train_mappo_floris_multi_env,
 )
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(

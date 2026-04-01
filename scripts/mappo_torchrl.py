@@ -31,7 +31,7 @@ from torchrl.envs import ParallelEnv
 from torchrl.modules import MultiAgentMLP, ProbabilisticActor, TanhNormal
 from torchrl.objectives import ClipPPOLoss, ValueEstimators
 
-from wind_farm_control.environments import (
+from environments.floris_torchrl_env import (
     FlorisMultiAgentTorchRLEnv,
     make_floris_torchrl_env,
 )

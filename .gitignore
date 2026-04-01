@@ -1,3 +1,13 @@
-**__pycache__**
-tests
+# byte combiled
+__pycache__/
 
+# project specific
+uvhelp.txt
+
+# venv
+.venv/
+.gitignore
+
+# os
+.DS_Store
+.vscode/
