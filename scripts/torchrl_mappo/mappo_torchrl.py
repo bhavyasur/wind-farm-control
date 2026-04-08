@@ -31,11 +31,10 @@ from torchrl.envs import ParallelEnv
 from torchrl.modules import MultiAgentMLP, ProbabilisticActor, TanhNormal
 from torchrl.objectives import ClipPPOLoss, ValueEstimators
 
-from environments.floris_torchrl_env import (
+from floris_torchrl_env import (
     FlorisMultiAgentTorchRLEnv,
     make_floris_torchrl_env,
 )
-
 
 @dataclass
 class MAPPOTorchRLConfig:
@@ -47,12 +46,11 @@ class MAPPOTorchRLConfig:
     # Environment / sampling
     num_envs: int = 8
     max_steps_per_episode: int = 100
-    n_iters: int = 5
-
+    n_iters: int = 1250
     # Optimisation / PPO
     num_epochs: int = 30
     minibatch_size: int = 256
-    lr: float = 3e-4
+    lr: float = 1e-4
     max_grad_norm: float = 1.0
     clip_epsilon: float = 0.2
     gamma: float = 0.99

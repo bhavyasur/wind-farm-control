@@ -3,6 +3,7 @@ __pycache__/
 
 # project specific
 uvhelp.txt
+wandb
 
 # venv
 .venv/

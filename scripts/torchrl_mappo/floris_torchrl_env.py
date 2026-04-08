@@ -306,12 +306,7 @@ def make_floris_torchrl_env(
     max_steps: int = 100,
     device: Optional[torch.device | str] = "cpu",
 ) -> FlorisMultiAgentTorchRLEnv:
-    """Factory for the TorchRL FLORIS environment.
-
-    This factory is designed to be passed to TorchRL collectors or BenchMARL
-    task definitions as a callable that returns a fully-configured environment.
-    The returned env is wrapped with a :class:`RewardSum` transform that
-    accumulates per-episode rewards under ``(\"agents\", \"episode_reward\")``.
+    """callable that returns a fully-configured environment.
     """
     return FlorisMultiAgentTorchRLEnv(
         config_path=config_path,

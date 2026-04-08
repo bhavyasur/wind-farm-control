@@ -10,8 +10,8 @@ independent environments in parallel (default: 8).
 from __future__ import annotations
 
 import argparse
-
 import torch
+import wandb  
 
 from mappo_torchrl import (
     MAPPOTorchRLConfig,
@@ -37,15 +37,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--n-iters",
         type=int,
-        default=5,
+        default=1250,
         help="Number of sampling/training iterations.",
     )
     parser.add_argument(
         "--device",
         type=str,
         default=None,
-        help="Torch device string, e.g. 'cuda' or 'cpu'. "
-        "Defaults to CUDA if available, else CPU.",
+        help="Torch device string, e.g. 'cuda' or 'cpu'.",
+    )
+    parser.add_argument(
+        "--project",
+        type=str,
+        default="torchrl-mappo-floris",
+        help="W&B project name.",
     )
     return parser.parse_args()
 
@@ -56,7 +61,7 @@ def main() -> None:
     if args.device is not None:
         device = torch.device(args.device)
     else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
     cfg = MAPPOTorchRLConfig(
         device=device,
@@ -64,12 +69,23 @@ def main() -> None:
         n_iters=args.n_iters,
     )
 
-    train_mappo_floris_multi_env(
-        config_path=args.config,
-        cfg=cfg,
+    wandb.init(
+        project=args.project,
+        config={**vars(args), **cfg.__dict__},
+        monitor_gym=True,  
+        save_code=True,
     )
+
+    try:
+        # test if train_mappo_floris_multi_env function calls wandb.log() inside iteration loop.
+        train_mappo_floris_multi_env(
+            config_path=args.config,
+            cfg=cfg,
+        )
+    finally:
+        # finish run
+        wandb.finish()
 
 
 if __name__ == "__main__":
     main()
-

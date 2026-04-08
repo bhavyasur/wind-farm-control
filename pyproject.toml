@@ -7,7 +7,7 @@ name = "wind-farm-control"
 version = "0.1.0"
 description = "Multi-agent reinforcement learning for wind farm yaw control optimization"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 authors = [
     { name = "Bhavya Sur" }
 ]
@@ -25,6 +25,7 @@ dependencies = [
     "numpy>=2.4.2",
     "optuna>=4.8.0",
     "pandas>=2.2.0",
+    "path>=17.1.1",
     "pettingzoo>=1.25.0",
     "pytest>=9.0.2",
     "seaborn>=0.13.2",
@@ -36,6 +37,8 @@ dependencies = [
     "torchrl>=0.11.1",
     "tqdm>=4.67.3",
     "vmas>=1.5.2",
+    "environments",
+    "wandb>=0.25.1",
 ]
 
 [project.optional-dependencies]

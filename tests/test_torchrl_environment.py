@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from wind_farm_control.environments import make_floris_torchrl_env
+from environments import make_floris_torchrl_env
 
 
 @pytest.fixture(scope="module")
