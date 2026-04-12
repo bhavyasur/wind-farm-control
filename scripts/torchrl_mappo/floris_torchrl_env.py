@@ -18,7 +18,7 @@ from torchrl.envs import EnvBase
 
 
 class FlorisMultiAgentTorchRLEnv(EnvBase):
-    """Multi-agent FLORIS environment with TorchRL API.
+    """Multi-agent FLORIS environment with TorchRL.
 
     Each turbine is controlled by an independent agent that adjusts its yaw
     angle to optimize the total farm power output. Observations and rewards
@@ -42,8 +42,8 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
     def __init__(
         self,
         config_path: str,
-        max_steps: int = 100,
-        device: Optional[torch.device | str] = "cpu",
+        max_steps: int = 500,
+        device: Optional[torch.device | str] = "mps",
     ) -> None:
         super().__init__(device=device, batch_size=torch.Size([]))
 
@@ -73,18 +73,13 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
 
         # ---- Specs ----
         # Observation per agent: same 3D wind state, represented as (n_agents, 3).
-        obs_low = torch.tensor(
-            [260.0, 5.0, 0.03], dtype=torch.float32, device=self._device
-        )
-        obs_high = torch.tensor(
-            [290.0, 15.0, 0.25], dtype=torch.float32, device=self._device
-        )
-        obs_low_expanded = obs_low.expand(self.n_agents, -1)
-        obs_high_expanded = obs_high.expand(self.n_agents, -1)
+        self.obs_low_raw = torch.tensor([260.0, 5.0, 0.03], device=self._device)
+        self.obs_high_raw = torch.tensor([290.0, 15.0, 0.25], device=self._device)
 
+        # New Spec: everything is now -1 to 1
         obs_spec = Bounded(
-            low=obs_low_expanded,
-            high=obs_high_expanded,
+            low=-torch.ones((self.n_agents, 3), device=self._device),
+            high=torch.ones((self.n_agents, 3), device=self._device),
             shape=torch.Size([self.n_agents, 3]),
             device=self._device,
             dtype=torch.float32,
@@ -180,7 +175,7 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
             device=self._device,
         )
 
-        obs = self.wind_state.expand(self.n_agents, -1).clone()
+        obs = self._normalize_obs(self.wind_state)
 
         data = TensorDict(
             {
@@ -245,7 +240,11 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
         done_flag = self.current_step >= self.max_steps
         done_tensor = torch.tensor([done_flag], dtype=torch.bool, device=self._device)
 
-        next_obs = self.wind_state.expand(self.n_agents, -1).clone()
+        # Scale the reward (assuming ~20MW is max)
+        max_power = 20.0
+        reward_scaled = (2.0 * (reward_mw / max_power)) - 1.0
+
+        next_obs = self._normalize_obs(self.wind_state)
 
         out = TensorDict(
             {
@@ -299,6 +298,11 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
             yaw_angles=np.array([yaw_angles_deg], dtype=float),
         )
         self.fmodel.run()
+    
+    def _normalize_obs(self, wind_state: torch.Tensor) -> torch.Tensor:
+        # Formula for -1 to 1 scaling: 2 * (x - min) / (max - min) - 1
+        norm = 2.0 * (wind_state - self.obs_low_raw) / (self.obs_high_raw - self.obs_low_raw) - 1.0
+        return norm.expand(self.n_agents, -1).clone()
 
 
 def make_floris_torchrl_env(

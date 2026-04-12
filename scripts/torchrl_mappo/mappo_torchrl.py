@@ -19,6 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, cast
 
+import wandb
+
 import torch
 from torchrl.data import Composite
 from tensordict import TensorDict
@@ -45,17 +47,17 @@ class MAPPOTorchRLConfig:
 
     # Environment / sampling
     num_envs: int = 8
-    max_steps_per_episode: int = 100
+    max_steps_per_episode: int = 500
     n_iters: int = 1250
     # Optimisation / PPO
-    num_epochs: int = 30
-    minibatch_size: int = 256
+    num_epochs: int = 10
+    minibatch_size: int = 1024
     lr: float = 1e-4
     max_grad_norm: float = 1.0
     clip_epsilon: float = 0.2
-    gamma: float = 0.99
+    gamma: float = 0.95
     lmbda: float = 0.9
-    entropy_eps: float = 1e-4
+    entropy_eps: float = 0.01
 
 
 def _build_policy_and_critic(
@@ -91,9 +93,7 @@ def _build_policy_and_critic(
         out_keys=[("agents", "loc"), ("agents", "scale")],
     )
 
-    # We do not have direct access to the environment specs here, so we simply
-    # set the TanhNormal bounds to [-1, 1] which matches the action spec
-    # implemented in `FlorisMultiAgentTorchRLEnv`.
+    # set bounds to match spec in`FlorisMultiAgentTorchRLEnv`.
     action_low = -torch.ones(action_dim, device=device)
     action_high = torch.ones(action_dim, device=device)
 
@@ -270,7 +270,8 @@ def train_mappo_floris_multi_env(
             critic_network=critic,
             clip_epsilon=cfg.clip_epsilon,
             entropy_coeff=cfg.entropy_eps,
-            normalize_advantage=False,
+            normalize_advantage=True,
+        
         )
         loss_module.set_keys(
             reward=("agents", "reward"),
@@ -279,6 +280,8 @@ def train_mappo_floris_multi_env(
             done=("agents", "done"),
             terminated=("agents", "terminated"),
         )
+
+        loss_module.normalize_advantage_exclude_dims = (-1,)
 
         loss_module.make_value_estimator(
             ValueEstimators.GAE, gamma=cfg.gamma, lmbda=cfg.lmbda
@@ -332,6 +335,11 @@ def train_mappo_floris_multi_env(
             data_view = tensordict_data.reshape(-1)
             replay_buffer.extend(data_view)
 
+            # Track losses for logging
+            cumulative_loss = 0.0
+            cumulative_critic = 0.0
+            cumulative_actor = 0.0
+
             # Optimisation epochs
             for _ in range(cfg.num_epochs):
                 num_minibatches = frames_per_batch // cfg.minibatch_size
@@ -352,12 +360,31 @@ def train_mappo_floris_multi_env(
                     optim.step()
                     optim.zero_grad()
 
-            # Simple logging: mean reward over all envs / steps / agents
+                    # for logging
+                    cumulative_loss += loss_value.item()
+                    cumulative_critic += loss_vals["loss_critic"].item()
+                    cumulative_actor += loss_vals["loss_objective"].item()
+
+            # calculate mean reward over  batch for logging
             rewards = tensordict_data.get(("next", "agents", "reward"))
             mean_reward = rewards.mean().item()
+            
+            # calculate averages over the epochs/minibatches
+            total_updates = cfg.num_epochs * (frames_per_batch // cfg.minibatch_size)
+            
+            # 1. wandb logging
+            wandb.log({
+                "train/iteration": iter_idx + 1,
+                "train/mean_reward": mean_reward,
+                "train/total_loss": cumulative_loss / total_updates,
+                "train/critic_loss": cumulative_critic / total_updates,
+                "train/actor_loss": cumulative_actor / total_updates,
+            })
+
+            # 2. Keep the console print for local monitoring
             print(
                 f"[MAPPO] Iteration {iter_idx + 1}/{cfg.n_iters} "
-                f"- mean reward per step per agent: {mean_reward:.4f}"
+                f"- Mean Reward: {mean_reward:.4f} | Loss: {cumulative_loss / total_updates:.4f}"
             )
     finally:
         env.close()
