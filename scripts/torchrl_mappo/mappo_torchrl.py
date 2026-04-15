@@ -46,9 +46,9 @@ class MAPPOTorchRLConfig:
     device: torch.device = torch.device("cpu")
 
     # Environment / sampling
-    num_envs: int = 8
-    max_steps_per_episode: int = 500
-    n_iters: int = 1250
+    num_envs: int = 4
+    max_steps_per_episode: int = 200
+    n_iters: int = 2000
     # Optimisation / PPO
     num_epochs: int = 10
     minibatch_size: int = 1024

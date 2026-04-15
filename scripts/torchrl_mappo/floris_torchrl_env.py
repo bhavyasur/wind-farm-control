@@ -42,7 +42,7 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
     def __init__(
         self,
         config_path: str,
-        max_steps: int = 500,
+        max_steps: int = 200,
         device: Optional[torch.device | str] = "mps",
     ) -> None:
         super().__init__(device=device, batch_size=torch.Size([]))

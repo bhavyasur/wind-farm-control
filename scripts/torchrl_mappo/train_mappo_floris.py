@@ -12,6 +12,9 @@ from __future__ import annotations
 import argparse
 import torch
 import wandb  
+import os
+
+os.environ["WANDB_START_METHOD"] = "thread"
 
 from mappo_torchrl import (
     MAPPOTorchRLConfig,
@@ -74,6 +77,7 @@ def main() -> None:
         config={**vars(args), **cfg.__dict__},
         monitor_gym=True,  
         save_code=True,
+        mode="online"
     )
 
     try:
