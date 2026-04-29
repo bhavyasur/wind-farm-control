@@ -178,6 +178,8 @@ def _collect_rollout(
     next_obs = torch.empty(
         num_envs, max_steps, n_agents, obs_dim, dtype=torch.float32, device=device
     )
+    baseline_power = torch.empty(num_envs, max_steps, 1, dtype=torch.float32, device=device)
+    actual_power = torch.empty(num_envs, max_steps, 1, dtype=torch.float32, device=device)
 
     td = env.reset().to(device)
 
@@ -203,6 +205,8 @@ def _collect_rollout(
         rewards[:, t] = td_next["agents", "reward"]
         done[:, t] = td_next["done"]
         terminated[:, t] = td_next["terminated"]
+        baseline_power[:, t] = td_next["baseline_power_mw"]
+        actual_power[:, t] = td_next["actual_power_mw"]
 
         td = td_next
 
@@ -215,6 +219,8 @@ def _collect_rollout(
             ("next", "agents", "reward"): rewards,
             ("next", "done"): done,
             ("next", "terminated"): terminated,
+            ("next", "baseline_power_mw"): baseline_power,
+            ("next", "actual_power_mw"): actual_power,
         },
         batch_size=torch.Size([num_envs, max_steps]),
         device=device,
@@ -368,10 +374,13 @@ def train_mappo_floris_multi_env(
             # calculate mean reward over  batch for logging
             rewards = tensordict_data.get(("next", "agents", "reward"))
             mean_reward = rewards.mean().item()
-            
+
+            mean_baseline_mw = tensordict_data.get(("next", "baseline_power_mw")).mean().item()
+            mean_actual_mw = tensordict_data.get(("next", "actual_power_mw")).mean().item()
+
             # calculate averages over the epochs/minibatches
             total_updates = cfg.num_epochs * (frames_per_batch // cfg.minibatch_size)
-            
+
             # 1. wandb logging
             wandb.log({
                 "train/iteration": iter_idx + 1,
@@ -379,6 +388,8 @@ def train_mappo_floris_multi_env(
                 "train/total_loss": cumulative_loss / total_updates,
                 "train/critic_loss": cumulative_critic / total_updates,
                 "train/actor_loss": cumulative_actor / total_updates,
+                "train/baseline_power_mw": mean_baseline_mw,
+                "train/actual_power_mw": mean_actual_mw,
             })
 
             # 2. Keep the console print for local monitoring

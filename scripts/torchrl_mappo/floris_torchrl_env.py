@@ -26,8 +26,9 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
     multi-agent utilities (e.g., :class:`torchrl.modules.MultiAgentMLP`).
 
     Keys:
-    - observations: (\"agents\", \"observation\") with shape ``(n_agents, 3)``
-      representing ``[wind_direction, wind_speed, turbulence_intensity]``.
+    - observations: (\"agents\", \"observation\") with shape ``(n_agents, 4)``
+      representing ``[wind_direction, wind_speed, turbulence_intensity, yaw_angle]``
+      where yaw_angle is per-agent and normalized to [-1, 1].
     - actions: (\"agents\", \"action\") with shape ``(n_agents, 1)`` in
       ``[-1, 1]``, scaled to yaw angles in ``[-25°, 25°]`` before calling FLORIS.
     - rewards: (\"agents\", \"reward\") with shape ``(n_agents, 1)`` where each
@@ -63,6 +64,7 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
 
         self.max_steps = max_steps
         self.current_step = 0
+        self.current_yaw = np.zeros(self.n_agents, dtype=np.float32)
 
         # Wind state: [direction, speed, turbulence]
         self.wind_state = torch.tensor(
@@ -76,11 +78,11 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
         self.obs_low_raw = torch.tensor([260.0, 5.0, 0.03], device=self._device)
         self.obs_high_raw = torch.tensor([290.0, 15.0, 0.25], device=self._device)
 
-        # New Spec: everything is now -1 to 1
+        # Obs: [wind_dir, wind_speed, turbulence, yaw_angle] all normalized to [-1, 1]
         obs_spec = Bounded(
-            low=-torch.ones((self.n_agents, 3), device=self._device),
-            high=torch.ones((self.n_agents, 3), device=self._device),
-            shape=torch.Size([self.n_agents, 3]),
+            low=-torch.ones((self.n_agents, 4), device=self._device),
+            high=torch.ones((self.n_agents, 4), device=self._device),
+            shape=torch.Size([self.n_agents, 4]),
             device=self._device,
             dtype=torch.float32,
         )
@@ -168,6 +170,7 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
     def _reset(self, tensordict: Optional[TensorDictBase] = None) -> TensorDict:
         """Reset the environment to the initial wind state."""
         self.current_step = 0
+        self.current_yaw = np.zeros(self.n_agents, dtype=np.float32)
         # Reset wind to a nominal operating point (matches PettingZoo env).
         self.wind_state = torch.tensor(
             [275.0, 10.0, 0.06],
@@ -175,7 +178,7 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
             device=self._device,
         )
 
-        obs = self._normalize_obs(self.wind_state)
+        obs = self._build_obs(self.wind_state, self.current_yaw)
 
         data = TensorDict(
             {
@@ -204,7 +207,7 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
                 f"got {tuple(actions.shape)}"
             )
 
-        # Random wind drift (same logic as PettingZoo env, but in torch).
+        # Random wind drift including turbulence (Fix 4: turbulence now drifts too).
         with torch.no_grad():
             drift_dir = torch.normal(
                 mean=torch.tensor(0.0, device=self._device),
@@ -214,25 +217,43 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
                 mean=torch.tensor(0.0, device=self._device),
                 std=torch.tensor(0.05, device=self._device),
             )
+            drift_turbulence = torch.normal(
+                mean=torch.tensor(0.0, device=self._device),
+                std=torch.tensor(0.001, device=self._device),
+            )
             self.wind_state[0] = self.wind_state[0] + drift_dir
             self.wind_state[1] = self.wind_state[1] + drift_speed
+            self.wind_state[2] = self.wind_state[2] + drift_turbulence
             self.wind_state = torch.clamp(
                 self.wind_state,
                 min=torch.tensor([260.0, 5.0, 0.03], device=self._device),
                 max=torch.tensor([290.0, 15.0, 0.25], device=self._device),
             )
 
-        # Convert actions to yaw degrees and run FLORIS.
+        # Scale action to yaw degrees and track current yaw state (Fix 2).
         yaw_adjust = (
             actions.detach().squeeze(-1).cpu().numpy() * 25.0
         )  # shape: (n_agents,)
-        self._run_floris(yaw_adjust)
+        self.current_yaw = yaw_adjust
 
-        # Global reward: sum of turbine powers (MW), shared across agents.
-        reward_mw = float(np.sum(self.fmodel.get_turbine_powers()) / 1e6)
+        # Zero-yaw baseline run: captures power purely from wind conditions (Fix 3).
+        # Subtracting baseline from actual cancels V³ wind-speed noise so the reward
+        # only measures what the yaw choices contributed.
+        self._run_floris(np.zeros(self.n_agents, dtype=float))
+        baseline_power_mw = float(np.sum(self.fmodel.get_turbine_powers()) / 1e6)
+
+        self._run_floris(yaw_adjust)
+        actual_power_mw = float(np.sum(self.fmodel.get_turbine_powers()) / 1e6)
+
+        # Fractional improvement over zero-yaw baseline, clipped to [-1, 1] (Fix 1 + 3).
+        # Positive = yaw steering is helping; negative = yaw is hurting.
+        reward_scaled = float(np.clip(
+            (actual_power_mw - baseline_power_mw) / baseline_power_mw,
+            -1.0, 1.0,
+        ))
         reward_tensor = torch.full(
             (self.n_agents, 1),
-            reward_mw,
+            reward_scaled,
             dtype=torch.float32,
             device=self._device,
         )
@@ -240,11 +261,7 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
         done_flag = self.current_step >= self.max_steps
         done_tensor = torch.tensor([done_flag], dtype=torch.bool, device=self._device)
 
-        # Scale the reward (assuming ~20MW is max)
-        max_power = 20.0
-        reward_scaled = (2.0 * (reward_mw / max_power)) - 1.0
-
-        next_obs = self._normalize_obs(self.wind_state)
+        next_obs = self._build_obs(self.wind_state, self.current_yaw)
 
         out = TensorDict(
             {
@@ -252,6 +269,8 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
                 ("agents", "reward"): reward_tensor,
                 "done": done_tensor,
                 "terminated": done_tensor.clone(),
+                "baseline_power_mw": torch.tensor([baseline_power_mw], dtype=torch.float32, device=self._device),
+                "actual_power_mw": torch.tensor([actual_power_mw], dtype=torch.float32, device=self._device),
             },
             batch_size=torch.Size([]),
             device=self._device,
@@ -303,6 +322,14 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
         # Formula for -1 to 1 scaling: 2 * (x - min) / (max - min) - 1
         norm = 2.0 * (wind_state - self.obs_low_raw) / (self.obs_high_raw - self.obs_low_raw) - 1.0
         return norm.expand(self.n_agents, -1).clone()
+
+    def _build_obs(self, wind_state: torch.Tensor, yaw_deg: np.ndarray) -> torch.Tensor:
+        """Build per-agent observation: normalized wind state + per-agent yaw (Fix 2)."""
+        wind_norm = self._normalize_obs(wind_state)  # (n_agents, 3)
+        yaw_norm = torch.tensor(
+            yaw_deg / 25.0, dtype=torch.float32, device=self._device
+        ).unsqueeze(-1)  # (n_agents, 1), already in [-1, 1]
+        return torch.cat([wind_norm, yaw_norm], dim=-1)  # (n_agents, 4)
 
 
 def make_floris_torchrl_env(
