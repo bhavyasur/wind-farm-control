@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--num-envs",
         type=int,
-        default=8,
+        default=16,
         help="Number of parallel FLORIS environments to run.",
     )
     parser.add_argument(

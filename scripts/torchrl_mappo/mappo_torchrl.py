@@ -296,6 +296,14 @@ def train_mappo_floris_multi_env(
 
         frames_per_batch = cfg.num_envs * cfg.max_steps_per_episode
 
+        if cfg.minibatch_size > frames_per_batch:
+            import warnings
+            warnings.warn(
+                f"minibatch_size ({cfg.minibatch_size}) > frames_per_batch ({frames_per_batch}); "
+                f"clamping minibatch_size to {frames_per_batch}."
+            )
+            cfg.minibatch_size = frames_per_batch
+
         replay_buffer = ReplayBuffer(
             storage=LazyTensorStorage(frames_per_batch, device=device),
             sampler=SamplerWithoutReplacement(),
