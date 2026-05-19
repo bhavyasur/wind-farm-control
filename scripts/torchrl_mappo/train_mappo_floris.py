@@ -32,18 +32,6 @@ def parse_args() -> argparse.Namespace:
         help="Path to FLORIS farm config YAML.",
     )
     parser.add_argument(
-        "--num-envs",
-        type=int,
-        default=16,
-        help="Number of parallel FLORIS environments to run.",
-    )
-    parser.add_argument(
-        "--n-iters",
-        type=int,
-        default=1250,
-        help="Number of sampling/training iterations.",
-    )
-    parser.add_argument(
         "--device",
         type=str,
         default=None,
@@ -66,11 +54,7 @@ def main() -> None:
     else:
         device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
-    cfg = MAPPOTorchRLConfig(
-        device=device,
-        num_envs=args.num_envs,
-        n_iters=args.n_iters,
-    )
+    cfg = MAPPOTorchRLConfig(device=device)
 
     wandb.init(
         project=args.project,
