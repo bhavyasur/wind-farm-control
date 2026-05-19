@@ -46,7 +46,7 @@ class MAPPOTorchRLConfig:
     device: torch.device = torch.device("cpu")
 
     # Environment / sampling
-    num_envs: int = 24
+    num_envs: int = 16
     max_steps_per_episode: int = 100
     n_iters: int = 4000
     # Optimisation / PPO
