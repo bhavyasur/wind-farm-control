@@ -142,10 +142,18 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
             shape=torch.Size([]),
         )
 
-        # Done spec: "done" and "terminated" scalars.
+        # Done spec: "done" and "terminated" scalars, plus per-step power diagnostics.
+        # Registering the power keys here is what makes ParallelEnv forward them
+        # through its worker pipes — unregistered keys are silently dropped.
         self.done_spec = Composite(
             done=done_leaf,
             terminated=done_leaf.clone(),
+            baseline_power_mw=UnboundedContinuous(
+                shape=torch.Size([1]), device=self._device, dtype=torch.float32
+            ),
+            actual_power_mw=UnboundedContinuous(
+                shape=torch.Size([1]), device=self._device, dtype=torch.float32
+            ),
             shape=torch.Size([]),
         )
 
@@ -185,6 +193,8 @@ class FlorisMultiAgentTorchRLEnv(EnvBase):
                 ("agents", "observation"): obs,
                 "done": torch.zeros(1, dtype=torch.bool, device=self._device),
                 "terminated": torch.zeros(1, dtype=torch.bool, device=self._device),
+                "baseline_power_mw": torch.zeros(1, dtype=torch.float32, device=self._device),
+                "actual_power_mw": torch.zeros(1, dtype=torch.float32, device=self._device),
             },
             batch_size=torch.Size([]),
             device=self._device,
