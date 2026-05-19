@@ -77,7 +77,7 @@ def main() -> None:
         config={**vars(args), **cfg.__dict__},
         monitor_gym=True,  
         save_code=True,
-        mode="online"
+        mode="disabled"
     )
 
     try:
