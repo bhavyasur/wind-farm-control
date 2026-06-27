@@ -12,3 +12,8 @@ wandb
 # os
 .DS_Store
 .vscode/
+
+# checkpoints
+checkpoints/
+*.pt
+*.pth
