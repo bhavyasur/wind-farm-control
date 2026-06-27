@@ -78,7 +78,7 @@ class MAPPOTorchRLConfig:
     device: torch.device = torch.device("cpu")
 
     # Environment / sampling
-    num_envs: int = 16
+    num_envs: int = 32
     max_steps_per_episode: int = 100
     n_iters: int = 4000
     # Optimisation / PPO
@@ -471,7 +471,7 @@ def train_mappo_floris_multi_env(
                     "train/entropy_coeff": cfg.entropy_eps,
                     "train/clip_epsilon": cfg.clip_epsilon,
 
-                    
+
                     # Timing
                     "performance/iteration_time_s": iter_time,
                     "performance/rollout_time_s": rollout_time,

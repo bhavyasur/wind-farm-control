@@ -17,3 +17,6 @@ wandb
 checkpoints/
 *.pt
 *.pth
+
+#
+bhavyapersonalinstructions.md
